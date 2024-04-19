@@ -13,12 +13,10 @@ import copy
 import holidays
 import plotly.express as px
 import streamlit as st
-from functions import get_datetime_range_by_hour,\
-    get_time_df_from_datetime_range,\
-    fetch_json, get_weather_df_from_open_meteo_json,\
-    create_download_link
+from functions import get_datetime_range_by_hour,get_time_df_from_datetime_range, fetch_json, get_weather_df_from_open_meteo_json, create_excel_download_link
 import warnings
 warnings.filterwarnings("ignore", message=".*XGBoost.*")
+
 
 if __name__ == "__main__":
     # Constants
@@ -73,8 +71,7 @@ if __name__ == "__main__":
         # Create A_df
         A_df = Xy_df.copy(deep=True)
         A_df = A_df[['datetime', 'holiday', 'temperature_2m (°C)', 'relativehumidity_2m (%)', 'kW']]
-        week_day_df = A_df['datetime'].dt.dayofweek
-        # A_df.insert(1, 'dia_semana', week_day_df.map(dias_semana_dict))
+        A_df.insert(1, 'day_of_week', A_df['datetime'].dt.strftime("%A"))
         # Map festivo to 'Si' / 'No'
         A_df['holiday'] = A_df['holiday'].map({0: 'No', 1: 'Yes'})
         # Add MW to A_df
@@ -86,17 +83,19 @@ if __name__ == "__main__":
         A_df = A_df.set_index('datetime')
         st.header('Prediction dataframe')
         st.dataframe(A_df)
-        # A_df as Download CSV link
+        # Download excel
         A_df = A_df.reset_index()
         min_date = A_df['datetime'].min().strftime('%Y-%m-%d')
         max_date = A_df['datetime'].max().strftime('%Y-%m-%d')
-        csv_output = A_df.to_csv(index=False).encode('utf-8')
-        download_url = create_download_link(csv_output, f'load_forecast_{min_date}_to_{max_date}')
-        st.markdown(download_url, unsafe_allow_html=True)
+        output_filename = f"load_forecast_{min_date}_to_{max_date}"
+        excel_filename = output_filename + ".xlsx"
+        download_excel_link = create_excel_download_link(A_df, excel_filename, "Download Excel")
+        st.markdown(download_excel_link, unsafe_allow_html=True)
         # Show load curves per day
         Xy_df = Xy_df.set_index('datetime')
         st.header('Prediction curves per day')
-        fig = px.line(Xy_df, x="hour", y="kW", color='date', markers=True)
+        fig = px.line(Xy_df, x="hour", y="kW", color='date', markers=True,
+                      labels={"hour": "Hour [h]", "kW": "Power [kW]", "date": "Date"})
         st.plotly_chart(fig, theme="streamlit", use_container_width=True)
         # Select date to show load curves per day
         st.header("Hourly prediction values")
@@ -105,7 +104,11 @@ if __name__ == "__main__":
         for elem in dates_list:
             mini_df = Xy_df[Xy_df['date'] == elem]
             date = mini_df['datetime'].astype(object).unique()[0].strftime("%Y-%m-%d")
-            week_day = mini_df['datetime'].astype(object).unique()[0].strftime("%A")
-            fig = px.bar(mini_df, x='hour', y='kW', color='kW')
-            st.subheader(f"{date}, {week_day}")
+            week_day_name = mini_df['datetime'].astype(object).unique()[0].strftime("%A")
+            month_name = mini_df['datetime'].astype(object).unique()[0].strftime("%B")
+            day_num = mini_df['datetime'].astype(object).unique()[0].day
+            year_num = mini_df['datetime'].astype(object).unique()[0].year
+            fig = px.bar(mini_df, x="hour", y="kW", color="kW",
+                         labels={"hour": "Hour [h]", "kW": "Power [kW]"})
+            st.subheader(f"{week_day_name}, {month_name} {day_num}, {year_num}")
             st.plotly_chart(fig, theme="streamlit", use_container_width=True)

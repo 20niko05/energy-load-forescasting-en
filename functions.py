@@ -5,7 +5,7 @@ This module provides utility functions for load forecasting project
 Author: Andres Felipe Forero Correa
 Date: 2023-05-23
 """
-
+import io
 import datetime as dt
 from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
@@ -60,8 +60,14 @@ def get_weather_df_from_open_meteo_json(json_data):
     return weather_df
 
 
-def create_download_link(val, filename):
-    """Create a download link using html code"""
-    b64 = base64.b64encode(val)
-    return f'<a href="data:application/octet-stream;base64,{b64.decode()}" \
-        download="{filename}.csv">Download CSV</a>'
+def create_excel_download_link(df, filename, html_text):
+    """Create a download link for a DataFrame in Excel format"""
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Sheet1')
+    output.seek(0)
+    excel_data = output.read()
+    b64 = base64.b64encode(excel_data).decode()
+    link = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" \
+             download="{filename}">{html_text}</a>'
+    return link
